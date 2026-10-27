@@ -21,6 +21,8 @@ def handle_events():
         elif event.type == SDL_KEYDOWN:
             if event.key == SDLK_SPACE:
                 boy.handle_input('SPACE', True)
+            elif event.key == SDLK_a:
+                boy.handle_input('A', True)
             elif event.key == SDLK_LEFT:
                 boy.handle_input('LEFT', True)
             elif event.key == SDLK_RIGHT:

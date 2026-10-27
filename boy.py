@@ -4,6 +4,40 @@ import math
 import time
 
 
+class AutoRun:
+    DURATION = 5
+    SPEED = 10
+    WIDTH = 150
+    SCREEN_WIDTH = 800
+
+    def __init__(self):
+        self.started_at = None
+
+    def start(self):
+        self.started_at = time.time()
+
+    def is_finished(self):
+        return (
+            self.started_at is not None
+            and time.time() - self.started_at >= self.DURATION
+        )
+
+    def move(self, x, face_dir):
+        x += face_dir * self.SPEED
+        half_width = self.WIDTH / 2
+        left_edge = half_width
+        right_edge = self.SCREEN_WIDTH - half_width
+
+        if x <= left_edge:
+            x = left_edge
+            face_dir = 1
+        elif x >= right_edge:
+            x = right_edge
+            face_dir = -1
+
+        return x, face_dir
+
+
 class Boy:
     def __init__(self):
         self.x, self.y = 400, 90
@@ -12,16 +46,19 @@ class Boy:
         self.pressed_directions = set()
         self.image = load_image('animation_sheet.png')
         self.last_input_time = time.time()
+        self.auto_run = AutoRun()
         self.machine = Machine(
             model=self,
-            states=['IDLE', 'RUN', 'SLEEP'],
+            states=['IDLE', 'RUN', 'SLEEP', 'AUTO_RUN'],
             initial='IDLE',
             auto_transitions=False,
         )
-        self.machine.add_transition('start_run', ['IDLE', 'SLEEP'], 'RUN')
+        self.machine.add_transition('start_run', ['IDLE', 'SLEEP', 'AUTO_RUN'], 'RUN')
         self.machine.add_transition('stop_run', 'RUN', 'IDLE')
         self.machine.add_transition('sleep', 'IDLE', 'SLEEP')
         self.machine.add_transition('wake_up', 'SLEEP', 'IDLE')
+        self.machine.add_transition('start_auto_run', 'IDLE', 'AUTO_RUN')
+        self.machine.add_transition('stop_auto_run', 'AUTO_RUN', 'IDLE')
 
     def handle_input(self, key, pressed=True):
         self.last_input_time = time.time()
@@ -29,8 +66,6 @@ class Boy:
             if pressed:
                 self.pressed_directions.add(key)
                 self.face_dir = -1 if key == 'LEFT' else 1
-                if self.state == 'SLEEP':
-                    self.wake_up()
                 if self.state != 'RUN':
                     self.start_run()
             else:
@@ -42,6 +77,9 @@ class Boy:
                     self.stop_run()
         elif key == 'SPACE' and pressed and self.state == 'SLEEP':
             self.wake_up()
+        elif key == 'A' and pressed and self.state == 'IDLE':
+            self.auto_run.start()
+            self.start_auto_run()
 
     def update(self):
         if self.state == 'IDLE' and time.time() - self.last_input_time >= 3:
@@ -51,6 +89,13 @@ class Boy:
         elif self.state == 'RUN':
             self.x += self.face_dir * 5
             self.x = max(50, min(750, self.x))
+            self.frame = (self.frame + 1) % 8
+        elif self.state == 'AUTO_RUN':
+            if self.auto_run.is_finished():
+                self.stop_auto_run()
+                self.last_input_time = time.time()
+                return
+            self.x, self.face_dir = self.auto_run.move(self.x, self.face_dir)
             self.frame = (self.frame + 1) % 8
         elif self.state == 'SLEEP':
             self.frame = 0
@@ -65,6 +110,11 @@ class Boy:
         if self.state == 'RUN':
             bottom = 100 if self.face_dir == 1 else 0
             self.image.clip_draw(self.frame * 100, bottom, 100, 100, self.x, self.y)
+        elif self.state == 'AUTO_RUN':
+            bottom = 100 if self.face_dir == 1 else 0
+            self.image.clip_draw(
+                self.frame * 100, bottom, 100, 100, self.x, self.y, 150, 150
+            )
         elif self.face_dir == 1:
             self.image.clip_draw(self.frame * 100, 300, 100, 100, self.x, self.y)
         else:
